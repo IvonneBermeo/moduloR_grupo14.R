@@ -1,0 +1,64 @@
+---
+title: "Proyecto R"
+author: "Diana Ortiz Salgado, Evelyn Pilataxi Murillo, Ivonne Bermeo Calle"
+date: "2023-07-30"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#cargar paquetes----
+library(openxlsx)
+library(magrittr)
+library(tidyverse)
+library(dplyr)
+library(readxl)
+library(ggplot2)
+library(knitr)
+```
+
+## Introducción
+
+El análisis de estos indicadores financieros es de gran relevancia para comprender la salud y la estabilidad del tejido empresarial, así como para identificar posibles desafíos y oportunidades en el panorama económico actual. El endeudamiento del activo y la liquidez son elementos fundamentales que pueden influir en la capacidad de una empresa para hacer frente a sus obligaciones financieras y operativas.
+
+Además, este informe también incluirá un análisis detallado del top 10 de empresas con mayor apalancamiento, lo que permitirá identificar aquellas organizaciones que presentan una mayor dependencia del financiamiento mediante deuda en su estructura de capital.
+
+El presente análisis se basará en datos recopilados de fuentes financieras confiables y se realizará un estudio comparativo para extraer conclusiones significativas que aporten una visión clara sobre las tendencias y diferencias existentes en cuanto al endeudamiento del activo y la liquidez entre distintos tipos y tamaños de empresas.\
+
+## Objetivos
+
+-   Analizar y comparar aspectos clave relacionados con el endeudamiento del activo y la liquidez en empresas micro y pequeñas en comparación con empresas de mayor tamaño.
+
+-   Explorar si existe una diferencia significativa en la liquidez entre empresas que cuentan con más de 60 trabajadores directos y aquellas que tienen entre 100 y 800 trabajadores administrativos.
+
+-   Describir el top 10 de empresas con mayor apalancamiento.
+
+## Descripcion del dataset balance_2014.xlsx.
+
+Los datos a usar son del dataset "balances_2014.xlsx" se conforman de 347 variables medidas en 47033 observaciones.
+
+Encontramos las siguientes variables: expediente, ruc, nombre_cia,situacion, tipo, fecha_const, pais, provincia, provincia
+
+```{r, echo=FALSE}
+columna1 <- c("expediente", "trab_direc", "trab_admin ","trab_produc","trab_otros")
+columna2 <- c("ruc","nombre_cia", "situacion","tipo","fecha_const")
+datos <- data.frame(Columna1 = columna1,  Columna2 = columna2)
+knitr::kable(datos, format = "markdown", col.names = c("Variables numéricas", "Variables caracter "))
+```
+
+```{r data_balance, echo=FALSE}
+data_balance<- read.xlsx("data/balances_2014.xlsx")
+str(data_balance)
+```
+
+Durante el análisis de la data, se han identificado varibles mal clasificadas, por lo que puede afectar en la interpretacion de los resultados. Es por esto que, se debe realizar una limpieza de los datos para manipularlos adecuadamente y obtener resultados confiables.
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
