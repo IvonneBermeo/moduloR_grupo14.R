@@ -1,6 +1,6 @@
 ---
 title: "Proyecto R"
-author: "Diana Ortiz Salgado, Evelyn Pilataxi Murillo, Ivonne Bermeo Calle"
+author: "Evelyn Pilataxi Murillo, Ivonne Bermeo Calle"
 date: "2023-07-30"
 output: pdf_document
 ---
@@ -33,11 +33,11 @@ El presente análisis se basará en datos recopilados de fuentes financieras con
 
 -   Describir el top 10 de empresas con mayor apalancamiento.
 
-## Descripcion del dataset balance_2014.xlsx.
+## Descripción del dataset balance_2014.xlsx.
 
-Los datos a usar son del dataset "balances_2014.xlsx" se conforman de 347 variables medidas en 47033 observaciones.
+Los datos a usar son el dataset "balances_2014.xlsx" se conforman de 347 variables medidas en 47033 observaciones.
 
-Encontramos las siguientes variables: expediente, ruc, nombre_cia,situacion, tipo, fecha_const, pais, provincia, provincia
+Encontramos las siguientes variables: expediente, ruc, nombre_cia,situacion, tipo, fecha_const, pais, provincia.
 
 ```{r, echo=FALSE}
 columna1 <- c("expediente", "trab_direc", "trab_admin ","trab_produc","trab_otros")
@@ -46,19 +46,328 @@ datos <- data.frame(Columna1 = columna1,  Columna2 = columna2)
 knitr::kable(datos, format = "markdown", col.names = c("Variables numéricas", "Variables caracter "))
 ```
 
+Con el siguiente código visualizamos las variables y el tipo de variables del dataset.
+
 ```{r data_balance, echo=FALSE}
-data_balance<- read.xlsx("data/balances_2014.xlsx")
-str(data_balance)
+data_balances<- read.xlsx("data/balances_2014.xlsx")
+str(data_balances)
 ```
 
-Durante el análisis de la data, se han identificado varibles mal clasificadas, por lo que puede afectar en la interpretacion de los resultados. Es por esto que, se debe realizar una limpieza de los datos para manipularlos adecuadamente y obtener resultados confiables.
+Se determina cuántos valores faltantes existen
 
-## Including Plots
-
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
+```{r}
+sum(is.na(data_balances))
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+Durante el análisis de la data, se han identificado 233305 datos faltantes (NA), por lo que puede afectar en la interpretación de los resultados. Es por esto que, se debe realizar una limpieza de los datos para manipularlos adecuadamente y obtener resultados confiables.
+
+Con el siguiente código realizamos la limpieza de los datos:
+
+```{r}
+n_columnas <- ncol(data_balances)
+for (i in 1:n_columnas) {
+  data_balances_limpio <- data_balances[!is.na(data_balances[, i]), ]
+}
+dim(data_balances_limpio)
+```
+
+Con el dataset limpio obtenemos que la nueva base de datos se conforma de 347 variables medidas en 46578 observaciones.
+
+## Preparación de los datos
+
+1.Utilizando los datos en el archivo llamado balance_2014.xlsx generamos un tibble denominado "empresas" y contenga las siguientes variables: Empresas,Status, Tipo_de_empresa, País,Provincia,Cantón,Ciudad,Actividad económica,Subactividad,Liquidez corriente,Endeudamiento del activo,Endeudamiento patrimonial,Endeudamiento del Activo Fijo y Apalancamiento.
+
+```{r}
+empresas<- as_tibble(data_balances_limpio)
+
+#seleccionar las columnas solicitadas
+empresas<-mutate(empresas,Liquidez_corriente=v345/v539,
+                       Endeudamiento_del_activo=v599/v499,
+                       Endeudamiento_patrimonial=v599/v698,
+                       Endeudamiento_del_Activo_Fijo=v698/v498,
+                       Apalancamiento=v539/v499)
+
+#seleccionar las columnas solicitadas
+empresas <- select(empresas,nombre_cia , situacion, tipo, pais, 
+                   provincia, canton, ciudad, ciiu4_nivel1, ciiu4_nivel6,
+                   Liquidez_corriente,Endeudamiento_del_activo, Endeudamiento_patrimonial,
+                   Endeudamiento_del_Activo_Fijo,Apalancamiento)
+
+#Renombrar las columnas
+empresas<- rename(empresas, Empresas = nombre_cia,
+                  Status = situacion,
+                  Tipo_de_empresa= tipo,
+                  País= pais,
+                  Provincia= provincia,
+                  Cantón= canton, 
+                  Ciudad=  ciudad, 
+                  Actividad_económica= ciiu4_nivel1, 
+                  Subactividad= ciiu4_nivel6) 
+
+
+empresas
+```
+
+2.  Se crea una tabla resumiendo el número total de empresas por actividad económica. Para esto se carga la base de datos "ciiu.xlsx" para describir con los nombres de cada agrupamiento.
+
+```{r}
+data_2<- as_tibble(read.xlsx("data/ciiu.xlsx"))
+data_2<- data_2 %>% filter(CODIGO=="A" | CODIGO=="B" | CODIGO=="C"| CODIGO=="D"|
+                          CODIGO=="E"|CODIGO=="F"|CODIGO=="G"|CODIGO=="H"|
+                          CODIGO=="I"|CODIGO=="J"|CODIGO=="K"|CODIGO=="L"|
+                            CODIGO=="M"|CODIGO=="N"|CODIGO=="O"|CODIGO=="P"|
+                            CODIGO=="Q"|CODIGO=="R"|CODIGO=="S"|CODIGO=="T"|
+                            CODIGO=="U"|CODIGO=="Z")
+data_2<-data_2 %>%select(CODIGO,DESCRIPCION)
+
+data_3<-empresas %>% select(Actividad_económica)
+tabla1<-data_3 %>% group_by(Actividad_económica) %>%
+  summarise(Ntotal_emp_Actividad_eco=n()) %>%
+        left_join(data_2,by=c("Actividad_económica"="CODIGO"))  
+tabla1<-select(tabla1,Actividad_económica,DESCRIPCION,Ntotal_emp_Actividad_eco)
+tabla1 
+```
+
+A continuación, se crea una tabla resumiendo el número total de empresas por actividad económica por cada cantón.
+
+```{r}
+tabla2<-empresas%>% group_by(Actividad_económica,Cantón) %>% 
+  summarise(Ntotal_empresas_ecoycanton=n()) %>% 
+     left_join(data_2,by=c("Actividad_económica"="CODIGO"))
+tabla2<-select(tabla2,Actividad_económica,DESCRIPCION,
+               Cantón,Ntotal_empresas_ecoycanton)
+tabla2
+```
+
+3.  Se muestra el comparativo de los indicadores financieros de liquidez y solvencia por Status y provincia.
+
+Se realiza el comparativo de Liquidez corriente por Status y Provincia. Donde se observa que en la provincia del Guayas existe mayor liquidez corriente con respecto a las otras provincias. La mayoría de estas empresas tienen como Status la DISOLUC. LIQUIDAC. OFICIO INSC. EN RM.
+
+```{r message=FALSE, warning=FALSE}
+ggplot(empresas, aes(x =Provincia, y = Liquidez_corriente,fill=Status)) +
+  geom_bar(stat = "summary", position = "stack")+ 
+  labs(title = "Comparativo de Liquidez corriente por Status y Provincia",
+       x = "Provincia", y = "Liquidez corriente") +
+theme(legend.title = element_text(size = 7),
+      legend.text=element_text(size = 5),
+      legend.position = "bottom", legend.key.size = unit(0.4, "cm"),
+      axis.text.x = element_text(size=5,angle = 45, hjust = 1))+
+  guides(
+    fill = guide_legend(ncol = 3) # Ajustar el número de columnas de la leyenda
+  )
+```
+
+Se realiza el comparativo de Endeudamiento del activo por Status y Provincia. Donde se observa que en la provincia del Pichincha existe mayor Endeudamiento del activo con respecto a las otras provincias. La mayoría de estas empresas tienen como Status la CANCELACIÓN PERMISO OPERACIÓN - OFICIO INSCRITA RM.
+
+```{r message=FALSE, warning=FALSE}
+ggplot(empresas, aes(x =Provincia, y = Endeudamiento_del_activo,fill=Status)) +
+  geom_bar(stat = "summary", position = "stack") +
+  labs(title = "Comparativo de Endeudamiento del activo por Status y Provincia",
+       x = "Provincia", y = "Endeudamiento del activo") +
+  theme(legend.title = element_text(size = 7),
+        legend.text=element_text(size = 5),legend.position = "bottom", 
+        legend.key.size = unit(0.4, "cm"),
+        axis.text.x = element_text(size=5,angle = 45, hjust = 1))+
+  guides(
+    fill = guide_legend(ncol = 3) # Ajustar el número de columnas de la leyenda
+  )
+```
+
+Se realiza el comparativo de Endeudamiento patrimonial por Status y Provincia. Donde se observa que en la provincia de Santo Domingo de los Tsachilas existe mayor Endeudamiento patrimonial con respecto a las otras provincias. La mayoría de estas empresas tienen como Status la DISOLUC. Y LIQUIDAC. ANTIC. INSCR. RM.
+
+```{r message=FALSE, warning=FALSE}
+ggplot(empresas, aes(x =Provincia, y = Endeudamiento_patrimonial,fill=Status)) +
+  geom_bar(stat = "summary", position = "stack") +
+  labs(
+    title = "Comparativo de Endeudamiento patrimonial por Status y Provincia",
+       x = "Provincia", y = "Endeudamiento patrimonial") +
+   theme(legend.title = element_text(size = 7),
+         legend.text=element_text(size = 5),
+         legend.position = "bottom", 
+         legend.key.size = unit(0.4, "cm"),
+         axis.text.x = element_text(size=5,angle = 45, hjust = 1))+
+guides(
+    fill = guide_legend(ncol = 3) # Ajustar el número de columnas de la leyenda
+  )
+```
+
+Se realiza el comparativo de Endeudamiento del Activo Fijo por Status y Provincia. Donde se observa que en la provincia de Azuay existe mayor Endeudamiento del Activo Fijo con respecto a las otras provincias. La mayoría de estas empresas tienen como Status la DISOLUC. Y LIQUIDAC. ANTIC. INSCR. RM.
+
+```{r message=FALSE, warning=FALSE}
+
+ggplot(empresas, aes(x =Provincia, y = Endeudamiento_del_Activo_Fijo,
+                     fill=Status)) +
+  geom_bar(stat = "summary", position = "stack") +
+  labs(title = "Comparativo de Endeudamiento del Activo Fijo por 
+       Status y Provincia",
+       x = "Provincia", y = "Endeudamiento del Activo Fijo") +
+   theme(legend.title = element_text(size = 7),
+         legend.text=element_text(size = 5),
+         legend.position = "bottom", legend.key.size = unit(0.4, "cm"),
+         axis.text.x = element_text(size=5,angle = 45, hjust = 1))+
+  guides(
+    fill = guide_legend(ncol = 3) # Ajustar el número de columnas de la leyenda
+  )
+```
+
+Se realiza el comparativo de Apalancamiento por Status y Provincia. Donde se observa que en la provincia de Manabí existe mayor Apalancamiento con respecto a las otras provincias. La mayoría de estas empresas tienen como Status la DISOLUC. Y LIQUIDAC. ANTIC. INSCR. RM.
+
+```{r message=FALSE, warning=FALSE}
+ggplot(empresas, aes(x =Provincia, y = Apalancamiento,fill=Status)) +
+  geom_bar(stat = "summary", position = "stack") +
+  labs(title = "Comparativo de Apalancamiento por Status y Provincia",
+       x = "Provincia", y = "Apalancamiento") +
+  theme(legend.title = element_text(size = 7),
+        legend.text=element_text(size = 5),legend.position = "bottom", 
+        legend.key.size = unit(0.4, "cm"),
+        axis.text.x = element_text(size=5,angle = 45, hjust = 1))+
+guides(
+    fill = guide_legend(ncol = 3) # Ajustar el número de columnas de la leyenda
+  )
+```
+
+4.  Gráficamente muestra el comparativo de los indicadores financieros de liquidez y solvencia por tipo de empresa.
+
+A través de la gráfica se observa que las empresas de tipo Anónima tiene un mayor Endeudamiento del Activo Fijo con Respecto a la liquidez, y también se observa que la empresa RESPONSABILIDAD LIMITADA no adeuda porque tiene una mayor liquidez.
+
+```{r message=FALSE, warning=FALSE}
+ggplot(empresas, aes(x = Tipo_de_empresa)) +
+ geom_line(aes(y = Liquidez_corriente, group = 1, 
+               color = "Liquidez Corriente"), 
+            stat = "summary", fun = "mean", position = "dodge", size = 1) +
+  geom_point(aes(y = Liquidez_corriente, group = 1, 
+                 color = "Liquidez Corriente"), 
+            stat = "summary", fun = "mean", position = "dodge", size = 3) +
+  geom_line(aes(y = Endeudamiento_del_activo, group = 1,
+                color = "Endeudamiento del Activo"), 
+            stat = "summary", fun = "mean", position = "dodge", size = 1) +
+  geom_point(aes(y = Endeudamiento_del_activo, group = 1, 
+                 color = "Endeudamiento del Activo"), 
+            stat = "summary", fun = "mean", position = "dodge", size = 3)+
+  geom_line(aes(y = Endeudamiento_patrimonial, group = 1, 
+                color = "Endeudamiento Patrimonial"), 
+            stat = "summary", fun = "mean", position = "dodge", size = 1) +
+  geom_line(aes(y = Endeudamiento_del_Activo_Fijo, group = 1, 
+                color = "Endeudamiento del Activo Fijo"), 
+            stat = "summary", fun = "mean", position = "dodge", size = 1) +
+  geom_line(aes(y = Apalancamiento, group = 1, 
+                color = "Apalancamiento"), 
+            stat = "summary", fun = "mean", position = "dodge", size = 1) +
+  geom_point(aes(y = Endeudamiento_patrimonial, group = 1,
+                 color = "Endeudamiento Patrimonial"), 
+            stat = "summary", fun = "mean", position = "dodge", size = 3) +
+  geom_point(aes(y = Endeudamiento_del_Activo_Fijo, group = 1, 
+                 color = "Endeudamiento del Activo Fijo"), 
+            stat = "summary", fun = "mean", position = "dodge", size = 3) +
+  geom_point(aes(y = Apalancamiento, group = 1, color = "Apalancamiento"), 
+            stat = "summary", fun = "mean", position = "dodge", size = 3)+
+  scale_color_manual(values = c("Liquidez Corriente" = "blue", 
+                                "Endeudamiento del Activo" = "red", 
+                                "Endeudamiento Patrimonial" = "green", 
+                                "Endeudamiento del Activo Fijo" = "orange", 
+                                "Apalancamiento" = "purple")) +
+  theme_minimal() +
+  labs(title = "Comparativo de los indicadores financieros de 
+       liquidez y solvencia por tipo de empresa",
+       x = "Tipo de Empresa", y = "Valor en Dólares",
+       color = "Indicadores Financieros") +  # Cambiar el título de la leyenda
+  theme(plot.title = element_text(size = 12),
+        axis.text.x = element_text(size=7,angle = 45, hjust = 1))
+```
+
+## Análisis de resultados
+
+**¿El endeudamiento del activo fue mayor en empresas micro + pequeñas vs. grandes?**
+
+Sí. El endeudamiento del activo fue mayor en empresas micro + pequeñas obteniendo un valor de 125165.87. Mientras que, el endeudamiento del activo en empresas grandes fue de 2854. Aquí se muestra una diferencia considerable, en donde un endeudamiento más elevado puede implicar mayores riesgos financieros y una mayor vulnerabilidad ante cambios en las tasas de interés o en la economía en general.
+
+```{r}
+#Agrego las columnas con las que se necesita operar
+empresas$trab_direc<-data_balances_limpio$trab_direc
+empresas$tamanio<-data_balances_limpio$tamanio
+empresas$trab_admin<-data_balances_limpio$trab_admin
+
+
+#¿El endeudamiento del activo fue mayor en empresas 
+#micro + pequeñas vs. grandes?
+PM<-empresas %>% select(tamanio,Endeudamiento_del_activo) %>%
+  filter(tamanio=="PEQUEÑA" | tamanio=="MICRO") 
+PM_limpio<-PM [ is.finite(PM$Endeudamiento_del_activo), ]
+E_activo_PM<-sum(PM_limpio$Endeudamiento_del_activo, na.rm = TRUE)
+
+G<-empresas %>% select(tamanio,Endeudamiento_del_activo) %>% 
+  filter(tamanio=="GRANDE") 
+E_activo_G<-sum(G$Endeudamiento_del_activo, na.rm = TRUE)
+
+RESULTADOS<-data.frame(
+  Tipo_empresa = c("Micro + Pequeñas", "Grandes"),
+  Endeudamiento=c(E_activo_PM,E_activo_G)
+)
+
+ggplot(RESULTADOS, aes(x = Tipo_empresa, y = Endeudamiento)) +
+  geom_bar(stat = "identity", fill= "blue") +
+  labs(title = "Endeudamiento del activo en empresas 
+       micro + pequeñas vs. grandes",
+       x = "Tamaño empresa", y = "Endeudamiento del activo") +
+  theme_minimal()
+
+```
+
+**¿La liquidez por tipo de compañía es diferente entre aquellas empresas que tienen más de 60 trabajadores directos y que cuenta con 100 a 800 trabajadores administrativos?**
+
+Sí, la liquidez por tipo de compañía es diferente entre aquellas empresas que tienen más de 60 trabajadores directos y aquellas que cuentan con 100 a 800 trabajadores administrativos.
+
+La liquidez de las empresas con más de 60 trabajadores directos obtuvo un resultado de 58.59, mientras que la liquidez de las empresas entre 100 y 800 trabajadores administrativos es igual a 295.66. Por lo tanto, las empresas entre 100 y 800 trabajadores administrativos tienen una mejor liquidez en comparación con las empresas con más de 60 trabajadores directos.
+
+```{r}
+LIQ_B<-empresas %>% select(Tipo_de_empresa,Liquidez_corriente,trab_direc) %>% 
+  group_by(Tipo_de_empresa) %>% filter(trab_direc>=60) 
+LIQ_B_limpio<- LIQ_B[ is.finite(LIQ_B$Liquidez_corriente), ]
+ResB<-sum(LIQ_B_limpio$Liquidez_corriente)
+
+LIQ_C<-empresas %>% select(Liquidez_corriente,trab_admin,Tipo_de_empresa) %>%
+  group_by(Tipo_de_empresa)%>% filter(trab_admin >=100 & trab_admin <=800)
+LIQ_C_limpio<- LIQ_C[ is.finite(LIQ_C$Liquidez_corriente), ]
+ResC<-sum(LIQ_C_limpio$Liquidez_corriente)
+
+
+L_RES<-data.frame(
+  Filtros=c("Mayores o igual a 60 Trabajadores directos",
+            " De 100 a 800 trabajadores administrativos "),
+  liquidez_x_compañía= c(ResB, ResC)
+  
+)
+
+ggplot(L_RES, aes(x = Filtros, y = liquidez_x_compañía)) +
+  geom_bar(stat = "identity", fill= "blue") +
+  labs(title = "Liquidez por tipo de compañía vs  empresas que tienen más 
+de 60 trabajadores directos y que cuenta 
+con 100 a 800 trabajadores administrativos",
+       x = "", y = "Liquidez") +
+  theme_minimal()
+```
+
+**Describe el top 10 de empresas con mayor apalancamiento.** Se obtuvo que la empresa con mayor apalancamiento es NAVIQUITO S.A., con un valor de 33060.61 dólares y a diferencia de la última empresa LABCESTTA S.A., que tiene un valor de 592.48 dólares. Como se observa en la gráfica. Un alto apalancamiento financiero puede indicar que NAVIQUITO S.A depende en gran medida de la deuda para financiar sus operaciones lo que puede implicar mayores riesgos financieros.
+
+```{r}
+TOP_APAL<-empresas %>% select(Empresas,Apalancamiento)
+TOP_APAL_limpio<- TOP_APAL[ is.finite(TOP_APAL$Apalancamiento), ] 
+#Descarta valores infinitos
+
+TOP_ordenados<-TOP_APAL_limpio %>% arrange(desc(Apalancamiento)) 
+TOP_10<-head(TOP_ordenados,10)
+
+ggplot(TOP_10, aes(x = reorder(Empresas,Apalancamiento), y = Apalancamiento)) +
+  geom_bar(stat = "identity", fill= "blue") +
+  labs(title = "Top 10 de empresas con mayor apalancamiento",
+       x = "Empresas", y = "Apalancamiento") +
+  theme(axis.text.x = element_text(size=6,angle = 45, hjust = 1))
+```
+
+## Conclusiones
+
+Las micro y pequeñas empresas pueden tener una mayor dependencia de la deuda para financiar sus operaciones o inversiones en comparación con las empresas grandes. Por lo tanto, es relevante que las empresas micro y pequeñas gestionen prudentemente sus niveles de deuda y evalúen estratégicamente cómo utilizar los recursos financieros disponibles para asegurar su sostenibilidad a largo plazo.
+
+La liquidez agrupada por tipo de compañia que cuenta con 100 a 800 trabajadores administrativos deben adoptar diferentes estructuras financieras, flujos de efectivo o políticas de gestión financiera para poder cumplir con sus pagos a corto plazo.
+
+Por último entre las empresas que tienen un mayor apalancamiento, esto quiere decir que dependen de una deuda para financiar sus operaciones financieras ya que no disponen del capital necesario. Por lo tanto, deben gestionar cuidadosamente su deuda y evaluar estratégicamente su estructura financiera para garantizar su sostenibilidad a largo plazo.
